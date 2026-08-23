@@ -4,6 +4,7 @@ import { action } from '@ember/object';
 import { on } from '@ember/modifier';
 import { fn } from '@ember/helper';
 import { playBeadClick, playReset } from '../utils/sounds';
+import { service } from '@ember/service';
 
 const RODS = 4;
 const EARTH_BEADS = 4;
@@ -14,6 +15,8 @@ const EARTH_BEADS = 4;
  * let the student work calculations on-screen.
  */
 export default class Soroban extends Component {
+  @service mindMode;
+
   @tracked heavenDown = Array(RODS).fill(false);
   @tracked earthUp = Array(RODS).fill(0);
   @tracked visible = true;
@@ -165,75 +168,78 @@ export default class Soroban extends Component {
   }
 
   <template>
-    {{! collapsed pill — tap to reopen }}
-    {{#unless this.visible}}
-      <button
-        type="button"
-        class="soroban-launcher"
-        {{on "click" this.show}}
-        aria-label="Show soroban"
-      >🧮</button>
-    {{/unless}}
+    {{#unless this.mindMode.enabled}}
+      {{! collapsed pill — tap to reopen }}
+      {{#unless this.visible}}
 
-    {{#if this.visible}}
-      <div
-        class="soroban"
-        style={{this.panelStyle}}
-        role="group"
-        aria-label="Digital soroban"
-      >
-        {{! template-lint-disable no-pointer-down-event-binding }}
+        <button
+          type="button"
+          class="soroban-launcher"
+          {{on "click" this.show}}
+          aria-label="Show soroban"
+        >🧮</button>
+      {{/unless}}
+
+      {{#if this.visible}}
         <div
-          class="soroban-drag"
-          {{on "pointerdown" this.startDrag}}
-          {{on "pointermove" this.onDrag}}
-          {{on "pointerup" this.endDrag}}
-          {{on "pointercancel" this.endDrag}}
+          class="soroban"
+          style={{this.panelStyle}}
+          role="group"
+          aria-label="Digital soroban"
         >
-          <span class="soroban-value">{{this.value}}</span>
-          <button
-            type="button"
-            class="soroban-btn"
-            {{on "click" this.reset}}
-            aria-label="Reset beads"
-          >↺</button>
-          <button
-            type="button"
-            class="soroban-btn"
-            {{on "click" this.hide}}
-            aria-label="Hide soroban"
-          >✕</button>
-        </div>
+          {{! template-lint-disable no-pointer-down-event-binding }}
+          <div
+            class="soroban-drag"
+            {{on "pointerdown" this.startDrag}}
+            {{on "pointermove" this.onDrag}}
+            {{on "pointerup" this.endDrag}}
+            {{on "pointercancel" this.endDrag}}
+          >
+            <span class="soroban-value">{{this.value}}</span>
+            <button
+              type="button"
+              class="soroban-btn"
+              {{on "click" this.reset}}
+              aria-label="Reset beads"
+            >↺</button>
+            <button
+              type="button"
+              class="soroban-btn"
+              {{on "click" this.hide}}
+              aria-label="Hide soroban"
+            >✕</button>
+          </div>
 
-        <div class="soroban-frame">
-          {{#each this.rods as |rod|}}
-            <div class="soroban-rod">
-              <div class="soroban-heaven">
-                <button
-                  type="button"
-                  style={{rod.heavenStyle}}
-                  class="bead heaven"
-                  {{on "click" (fn this.toggleHeaven rod.index)}}
-                  aria-label="Heaven bead, rod {{rod.index}}"
-                ></button>
-              </div>
-              <div class="soroban-beam"></div>
-              <div class="soroban-earth">
-                {{#each rod.earthBeads as |bead|}}
+          <div class="soroban-frame">
+            {{#each this.rods as |rod|}}
+              <div class="soroban-rod">
+                <div class="soroban-heaven">
                   <button
                     type="button"
-                    style={{bead.style}}
-                    class="bead earth"
-                    {{on "click" (fn this.tapEarth rod.index bead.index)}}
-                    aria-label="Earth bead {{bead.index}}, rod {{rod.index}}"
+                    style={{rod.heavenStyle}}
+                    class="bead heaven"
+                    {{on "click" (fn this.toggleHeaven rod.index)}}
+                    aria-label="Heaven bead, rod {{rod.index}}"
                   ></button>
-                {{/each}}
+                </div>
+                <div class="soroban-beam"></div>
+                <div class="soroban-earth">
+                  {{#each rod.earthBeads as |bead|}}
+                    <button
+                      type="button"
+                      style={{bead.style}}
+                      class="bead earth"
+                      {{on "click" (fn this.tapEarth rod.index bead.index)}}
+                      aria-label="Earth bead {{bead.index}}, rod {{rod.index}}"
+                    ></button>
+                  {{/each}}
+                </div>
               </div>
-            </div>
-          {{/each}}
+            {{/each}}
+          </div>
+          <div class="soroban-hint">Tap beads to count • drag by the top bar</div>
         </div>
-        <div class="soroban-hint">Tap beads to count • drag by the top bar</div>
-      </div>
-    {{/if}}
+      {{/if}}
+    {{/unless}}
   </template>
 }

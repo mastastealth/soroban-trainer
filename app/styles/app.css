@@ -654,3 +654,93 @@ h2 {
   box-shadow: 0 6px 20px rgb(0 0 0 / 30%);
   cursor: pointer;
 }
+
+/* ---------- elements ---------- */
+
+.element-block {
+  margin: 1.6rem 0;
+}
+
+.element-head {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.55rem 0.9rem;
+  border-radius: 14px 14px 0 0;
+  background: color-mix(in srgb, var(--el) 12%, white);
+  border-left: 6px solid var(--el);
+}
+
+.element-emoji {
+  font-size: 1.7rem;
+}
+
+.element-name {
+  margin: 0;
+  color: var(--el);
+}
+
+.element-tagline {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #7a6f5d;
+}
+
+.element-badge {
+  margin-left: auto;
+  background: var(--el);
+  color: white;
+  font-weight: 800;
+  font-size: 0.8rem;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+}
+
+.element-block.water {
+  --el: #2e86b8;
+}
+
+.element-block.earth {
+  --el: #4a8f3c;
+}
+
+.element-block.air {
+  --el: #7a5fc0;
+}
+
+.element-block.fire {
+  --el: #d95a2b;
+}
+
+.element-block .level-card {
+  border-top: none;
+  border-radius: 0 0 16px 16px;
+}
+
+.element-block .level-grid {
+  gap: 0.9rem;
+}
+
+/* ---------- mind mode ---------- */
+
+.mind-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+}
+
+.mind-toggle input {
+  width: 1.15rem;
+  height: 1.15rem;
+  accent-color: var(--accent);
+}
+
+.mind-hint {
+  margin: 0.35rem 0 1rem;
+  font-size: 0.82rem;
+  color: #8a7f6d;
+}

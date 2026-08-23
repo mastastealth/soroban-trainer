@@ -6,17 +6,19 @@ import { LinkTo } from '@ember/routing';
 import { modifier } from 'ember-modifier';
 import { eq } from 'ember-truth-helpers';
 import { service } from '@ember/service';
-import { LEVELS } from '../utils/questions';
+import { ELEMENTS, LEVELS, OP_SIGNS } from '../utils/questions';
 
-const QUESTIONS_PER_LEVEL = 2;
+/** Two questions per stage, one on Fire. */
+const stageQuota = (index) => (index < 17 ? 2 : 1);
+
+/** Walk ends early once this many wrong answers pile up overall. */
+const MAX_TOTAL_MISSES = 3;
 
 const autofocus = modifier((el) => el.focus());
 
 /**
- * Placement quiz. Walks up the level ladder, two questions per level; a level
- * is passed only with both answers right, and the walk stops at the first
- * missed level. The highest fully-passed level becomes the student's
- * unlocked starting point.
+ * Placement quiz. Walks up the stage ladder; three wrong answers anywhere
+ * end the walk and place the student one stage below where they stand.
  */
 export default class AssessmentQuiz extends Component {
   @service progress;
@@ -24,10 +26,11 @@ export default class AssessmentQuiz extends Component {
   @tracked phase = 'intro'; // intro | running | done
   @tracked levelIndex = 0;
   @tracked questionNumber = 0;
+  @tracked askedInLevel = 0;
   @tracked question = null;
   @tracked answer = '';
   @tracked feedback = null;
-  @tracked missedThisLevel = false;
+  @tracked wrongTotal = 0;
   @tracked placement = null;
 
   inputTimeout = null;
@@ -45,9 +48,13 @@ export default class AssessmentQuiz extends Component {
     return LEVELS[this.placement];
   }
 
+  get currentElementEmoji() {
+    return ELEMENTS.find((e) => e.id === this.level.element)?.emoji ?? '';
+  }
+
   get progressLabel() {
-    const within = (this.questionNumber % QUESTIONS_PER_LEVEL) + 1;
-    return `Level ${this.levelIndex + 1} of ${LEVELS.length} · question ${within} of ${QUESTIONS_PER_LEVEL}`;
+    const quota = stageQuota(this.levelIndex);
+    return `Stage ${this.levelIndex + 1} of ${LEVELS.length} · Question ${this.askedInLevel + 1} of ${quota}`;
   }
 
   /** Rows for the vertical (column) problem layout. */
@@ -55,7 +62,7 @@ export default class AssessmentQuiz extends Component {
     if (!this.question) return [];
     return this.question.operands.map((value, i) => ({
       value,
-      sign: i === 0 ? '' : this.question.operators[i - 1] === '-' ? '−' : '+',
+      sign: i === 0 ? '' : (OP_SIGNS[this.question.operators[i - 1]] ?? '+'),
     }));
   }
 
@@ -68,7 +75,8 @@ export default class AssessmentQuiz extends Component {
   begin() {
     this.levelIndex = 0;
     this.questionNumber = 0;
-    this.missedThisLevel = false;
+    this.askedInLevel = 0;
+    this.wrongTotal = 0;
     this.#nextQuestion();
     this.phase = 'running';
   }
@@ -83,7 +91,7 @@ export default class AssessmentQuiz extends Component {
     event.preventDefault();
     if (this.feedback || this.answer === '') return;
     const correct = Number(this.answer) === this.question.answer;
-    if (!correct) this.missedThisLevel = true;
+    if (!correct) this.wrongTotal += 1;
     this.feedback = { correct, rightAnswer: this.question.answer };
     window.dispatchEvent(new Event('soroban:reset'));
     this.inputTimeout = setTimeout(() => this.advance(), correct ? 500 : 1600);
@@ -92,22 +100,29 @@ export default class AssessmentQuiz extends Component {
   advance() {
     this.feedback = null;
     this.questionNumber += 1;
-    const levelComplete = this.questionNumber % QUESTIONS_PER_LEVEL === 0;
-    if (!levelComplete) {
+    this.askedInLevel += 1;
+    const quota = stageQuota(this.levelIndex);
+    const hitLimit = this.wrongTotal >= MAX_TOTAL_MISSES;
+    if (!hitLimit && this.askedInLevel < quota) {
       this.#nextQuestion();
       return;
     }
-    if (this.missedThisLevel || this.levelIndex + 1 >= LEVELS.length) {
-      this.finish();
+    if (hitLimit || this.levelIndex + 1 >= LEVELS.length) {
+      this.finish(hitLimit);
       return;
     }
-    this.missedThisLevel = false;
+    // crossing into a new element washes the slate clean
+    const nextStage = LEVELS[this.levelIndex + 1];
+    if (nextStage.element !== this.level.element) {
+      this.wrongTotal = 0;
+    }
+    this.askedInLevel = 0;
     this.levelIndex += 1;
     this.#nextQuestion();
   }
 
-  finish() {
-    this.placement = this.missedThisLevel
+  finish(hitLimit) {
+    this.placement = hitLimit
       ? Math.max(0, this.levelIndex - 1)
       : LEVELS.length - 1;
     this.progress.completeAssessment(this.placement);
@@ -121,9 +136,9 @@ export default class AssessmentQuiz extends Component {
           <h1>Placement Quiz</h1>
           <p class="blurb">
             I'll ask you a few abacus questions, starting easy and getting
-            harder. Get both questions right in a row to climb to the next level
-            — the quiz stops when a level trips you up, and that's where your
-            training begins!
+            harder. Three slips within an element stop the quiz — you'll train
+            one stage below where that happens. Make it to the next element and
+            the slate wipes clean!
           </p>
           <button
             type="button"
@@ -133,7 +148,8 @@ export default class AssessmentQuiz extends Component {
         </div>
       {{else if (eq this.phase "running")}}
         <div class="hud">
-          <span class="hud-item">{{this.progressLabel}}</span>
+          <span class="hud-item">{{this.currentElementEmoji}}
+            {{this.progressLabel}}</span>
         </div>
         <div class="card question-card">
           {{#if this.feedback}}
@@ -153,7 +169,6 @@ export default class AssessmentQuiz extends Component {
                     <span class="stack-num">{{row.value}}</span>
                   </div>
                 {{/each}}
-                <div class="stack-rule"></div>
                 <input
                   {{autofocus}}
                   class="stack-input"

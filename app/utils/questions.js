@@ -1,9 +1,21 @@
 /**
- * Soroban curriculum: ordered levels and deterministic-shape question generators.
+ * Soroban curriculum: four elements (Water / Earth / Air / Fire) split into
+ * twenty ordered stages. Each stage drills exactly one technique, mirroring
+ * the "Abacus Mind Math" progression — one formula family at a time.
  *
- * A question is { operands: number[], operators: ('+'|'-')[], answer, note }.
- * `note` names the soroban technique the question exercises (shown after answering).
+ * A question is { operands: number[], operators: ('+'|'-'|'*'|'/')[], answer, note }.
+ * `note` names the soroban technique the question exercises.
+ *
+ * Generators accept { mind }: Mind Mode caps operand width and chain length
+ * so problems stay mental-math sized, and the practice UI hides the abacus.
  */
+
+import {
+  buildBorrowOperand,
+  buildCarryOperand,
+  simulateAdd,
+  simulateSub,
+} from './soroban-engine';
 
 const rand = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
 const pick = (arr) => arr[rand(0, arr.length - 1)];
@@ -11,7 +23,11 @@ const pick = (arr) => arr[rand(0, arr.length - 1)];
 function evaluate(operands, operators) {
   let answer = operands[0];
   for (let i = 0; i < operators.length; i++) {
-    answer += operators[i] === '+' ? operands[i + 1] : -operands[i + 1];
+    const op = operators[i];
+    if (op === '+') answer += operands[i + 1];
+    else if (op === '-') answer -= operands[i + 1];
+    else if (op === '*') answer *= operands[i + 1];
+    else if (op === '/') answer /= operands[i + 1];
   }
   return answer;
 }
@@ -21,6 +37,10 @@ function question(operands, operators, note) {
 }
 
 const nDigits = (n, min = 1) => rand(min, 10 ** n - 1);
+const toDigits = (n) => String(n).split('').reverse().map(Number);
+const fromDigits = (cols) => Number(cols.slice().reverse().join(''));
+
+// ---- Water ----------------------------------------------------------------
 
 /** Two one-digit numbers whose sum stays on one rod (no friend needed). */
 function genSingleAdd() {
@@ -31,33 +51,26 @@ function genSingleAdd() {
   );
 }
 
-/** Two one-digit numbers needing a small friend (of 5) or big friend (of 10). */
-function genFriendsAdd() {
-  const kind = rand(0, 2);
-  let a;
-  let b;
-  if (kind === 0) {
-    // small friend: sum between 6 and 9 (earth beads alone can't hold it)
-    a = rand(2, 4);
-    b = rand(6 - a, 9 - a);
-  } else if (kind === 1) {
-    // big friend: sum between 11 and 18 (crosses the tens rod)
-    a = rand(2, 9);
-    b = rand(Math.max(2, 11 - a), 18 - a);
-  } else {
-    // free mix, but still guaranteed to need a friend
-    do {
-      a = rand(1, 9);
-      b = rand(1, 9);
-    } while (a + b < 5);
-  }
-  const sum = a + b;
+/** Small friend of 5, addition side: +n = +5 −(5−n). */
+function genSmallFriendAdd() {
+  const a = rand(1, 4);
+  const b = rand(Math.max(1, 5 - a), 4);
   return question(
     [a, b],
     ['+'],
-    sum >= 10
-      ? 'Big friend of 10 — set the carry.'
-      : 'Small friend of 5 — use the heaven bead.',
+    'Small friend of 5 — set the heaven bead, take the complement back.',
+  );
+}
+
+/** Small friend of 5, subtraction side: −n = −5 +(5−n). */
+function genSmallFriendSub() {
+  const earth = rand(0, 3); // heaven up plus this much earth
+  const a = 5 + earth;
+  const b = rand(earth + 1, 4); // more than the earth beads alone can give
+  return question(
+    [a, b],
+    ['-'],
+    'Small friend of 5 — drop the heaven bead, add the complement.',
   );
 }
 
@@ -78,23 +91,141 @@ function genTwoDigitNoCarry() {
   );
 }
 
-/** Two-digit addition guaranteeing at least one carry (big friend). */
-function genTwoDigitCarry() {
-  const a = nDigits(2, 10);
-  const b = nDigits(2, 10);
+// ---- Earth & Air: formula-forcing stages ----------------------------------
+
+/**
+ * Addition stage forcing big-friend carries of the given digit(s).
+ * Every added operand provably triggers the target carry somewhere
+ * (verified by simulating the rods), other columns get light spice.
+ */
+function genCarryStage(digits, opts = {}) {
+  const mind = !!opts.mind;
+  const L = mind ? 2 : rand(2, 3);
+  const extraOperands = mind ? rand(1, 3) : rand(2, 4); // total ≤ 4 / ≤ 5 numbers
+  const targets = Array.isArray(digits) ? digits : [digits];
+
+  let total = toDigits(nDigits(L, 10 ** (L - 1)));
+  const firstOperand = fromDigits(total);
+  const operands = [];
+  for (let s = 0; s < extraOperands; s++) {
+    if (total.length > L) break; // keep every operand within stage width
+    const b = buildCarryOperand(total, () => pick(targets));
+    if (!b) break;
+    total = simulateAdd(total, b).digits;
+    operands.push(fromDigits(b));
+  }
+  if (operands.length === 0) {
+    // guaranteed fallback: single-column pure drill
+    const d = pick(targets);
+    const a = rand(10 - d, 9);
+    return question([a, d], ['+'], noteFor(digits));
+  }
   return question(
-    [a, b],
-    ['+'],
-    (a % 10) + (b % 10) >= 10
-      ? 'Ones rod overflows — big friend of 10.'
-      : 'Tens rod overflows — carry into hundreds.',
+    [firstOperand, ...operands],
+    operands.map(() => '+'),
+    noteFor(digits),
   );
 }
 
+function noteFor(digits) {
+  if (Array.isArray(digits)) {
+    return 'Big friend of 10 — trade a ten to the left rod.';
+  }
+  const fix = 10 - digits;
+  return `Big friend of 10: +${digits} = −${fix} +10.`;
+}
+
+/**
+ * Subtraction stage forcing borrows of the given digit(s).
+ * Mirrors genCarryStage on the borrow side.
+ */
+function genBorrowStage(digits, opts = {}) {
+  const mind = !!opts.mind;
+  const L = mind ? rand(2, 3) : rand(3, 3);
+  const extraOperands = mind ? rand(1, 4) : rand(2, 5); // total ≤ 5 / ≤ 6 numbers
+  const targets = Array.isArray(digits) ? digits : [digits];
+
+  let current = toDigits(nDigits(L, 10 ** (L - 1)));
+  const firstOperand = fromDigits(current);
+  const operands = [];
+  for (let s = 0; s < extraOperands; s++) {
+    const b = buildBorrowOperand(current, () => pick(targets));
+    if (!b) break;
+    const result = simulateSub(current, b);
+    if (!result) break;
+    current = result.digits;
+    operands.push(fromDigits(b));
+  }
+  if (operands.length === 0) {
+    const d = pick(targets);
+    const ones = rand(0, d - 1);
+    const a = rand(d, 9) * 10 + ones;
+    return question([a, d], ['-'], borrowNote(digits));
+  }
+  return question(
+    [firstOperand, ...operands],
+    operands.map(() => '-'),
+    borrowNote(digits),
+  );
+}
+
+function borrowNote(digits) {
+  if (Array.isArray(digits)) {
+    return 'Not enough beads — borrow a ten from the left.';
+  }
+  const fix = 10 - digits;
+  return `Borrow a ten: −${digits} = −10 +${fix}.`;
+}
+
+/** Subtraction whose borrows cascade across ≥ 2 columns (e.g. 302 − 154). */
+function genCascadeBorrow(opts = {}) {
+  const L = opts.mind ? 3 : rand(3, 4);
+  for (let attempt = 0; attempt < 400; attempt++) {
+    const a = nDigits(L, 10 ** (L - 1));
+    const b = nDigits(a - 1 >= 10 ** (L - 1) ? L - 1 : 1, 1);
+    if (b < 10 ** (L - 2)) continue; // keep both operands same-ish width
+    // measure the longest consecutive borrow run
+    const da = toDigits(a);
+    const db = toDigits(b);
+    let owe = 0;
+    let run = 0;
+    let best = 0;
+    let ok = true;
+    for (let j = 0; j < L; j++) {
+      const avail = da[j] - owe;
+      if (avail < db[j]) {
+        run++;
+        best = Math.max(best, run);
+        owe = 1;
+      } else {
+        run = 0;
+        owe = 0;
+      }
+      if (j === L - 1 && owe) ok = false; // would go negative overall
+    }
+    if (ok && best >= 2 && a - b > 0) {
+      return question(
+        [a, b],
+        ['-'],
+        'Cascade borrow — the ten you borrow may itself need another.',
+      );
+    }
+  }
+  // deterministic fallback with a known cascade
+  return question(
+    [opts.mind ? 103 : 1003, opts.mind ? 58 : 558],
+    ['-'],
+    'Cascade borrow — the ten you borrow may itself need another.',
+  );
+}
+
+// ---- longer chains --------------------------------------------------------
+
 /** Three to five two-/three-digit numbers added together. */
-function genLongAddition() {
-  const terms = rand(3, 5);
-  const digits = terms <= 3 ? rand(2, 3) : 2;
+function genLongAddition(opts = {}) {
+  const mind = !!opts.mind;
+  const terms = mind ? rand(3, 4) : rand(3, 5);
+  const digits = mind ? 2 : terms <= 3 ? rand(2, 3) : 2;
   const operands = Array.from({ length: terms }, () =>
     nDigits(digits, 10 ** (digits - 1)),
   );
@@ -121,24 +252,10 @@ function genSubNoBorrow() {
   );
 }
 
-/** Subtraction guaranteed to need a borrow (big friend backwards). */
-function genSubBorrow() {
-  const tensA = rand(2, 9);
-  const onesA = rand(0, 4);
-  const a = tensA * 10 + onesA;
-  const onesB = rand(onesA + 1, 9);
-  const tensB = rand(0, tensA - 1);
-  const b = tensB * 10 + onesB;
-  return question(
-    [a, b],
-    ['-'],
-    'Not enough ones — borrow a ten (big friend).',
-  );
-}
-
 /** Mixed chain of 3–5 additions/subtractions, running total never negative. */
-function genMixedChain() {
-  const terms = rand(3, 5);
+function genMixedChain(opts = {}) {
+  const mind = !!opts.mind;
+  const terms = mind ? rand(3, 4) : rand(3, 5);
   const operators = [];
   const operands = [nDigits(2, 10)];
   let running = operands[0];
@@ -156,58 +273,209 @@ function genMixedChain() {
   return question(
     operands,
     operators,
-    'Mixed chain — track the running total on your soroban.',
+    'Mixed chain — track the running total in your head.',
   );
 }
 
+// ---- Fire: multiplication & division -------------------------------------
+
+/** Abacus-style long multiplication: multi-digit × one digit. */
+function genMultiply(opts = {}) {
+  const mind = !!opts.mind;
+  const a = mind ? rand(12, 49) : rand(12, 99);
+  const b = rand(2, 9);
+  return question(
+    [a, b],
+    ['*'],
+    'Multiplication — add partial products left to right.',
+  );
+}
+
+/** Exact division: dividend ÷ divisor with a whole-number quotient. */
+function genDivide(opts = {}) {
+  const mind = !!opts.mind;
+  const divisor = rand(2, 9);
+  const quotient = mind ? rand(11, 49) : rand(11, 99);
+  return question(
+    [divisor * quotient, divisor],
+    ['/'],
+    'Division — subtract the divisor in chunks.',
+  );
+}
+
+// ---- curriculum -----------------------------------------------------------
+
+export const ELEMENTS = [
+  {
+    id: 'water',
+    name: 'Water',
+    emoji: '💧',
+    tagline: 'Flow — smooth beads, no formulas yet',
+  },
+  {
+    id: 'earth',
+    name: 'Earth',
+    emoji: '🌍',
+    tagline: 'Building — big-friend carries',
+  },
+  {
+    id: 'air',
+    name: 'Air',
+    emoji: '🌬️',
+    tagline: 'Letting go — big-friend borrows',
+  },
+  {
+    id: 'fire',
+    name: 'Fire',
+    emoji: '🔥',
+    tagline: 'Mastery — everything at once',
+  },
+];
+
 export const LEVELS = [
+  // 💧 Water — book level 1
   {
     id: 'single-add',
+    element: 'water',
     name: 'Single-Digit Addition',
-    blurb: 'Two one-digit numbers, no friends needed yet.',
+    blurb: 'Two one-digit numbers, plain bead pushes.',
     gen: genSingleAdd,
   },
   {
-    id: 'friends',
-    name: 'Friends of 5 & 10',
-    blurb: 'One-digit pairs that need small and big friends.',
-    gen: genFriendsAdd,
+    id: 'sf-add',
+    element: 'water',
+    name: 'Small Friends · Addition',
+    blurb: 'Every sum needs +n = +5 −(5−n).',
+    gen: genSmallFriendAdd,
+  },
+  {
+    id: 'sf-sub',
+    element: 'water',
+    name: 'Small Friends · Subtraction',
+    blurb: 'Every take-away needs −n = −5 +(5−n).',
+    gen: genSmallFriendSub,
   },
   {
     id: 'add-2d-plain',
-    name: 'Two-Digit Addition (no carries)',
-    blurb: 'Two or three two-digit numbers, every rod stays in range.',
+    element: 'water',
+    name: 'Two-Digit, No Carries',
+    blurb: 'Column work where every rod stays calm.',
     gen: genTwoDigitNoCarry,
   },
+  // 🌍 Earth — book level 2
   {
-    id: 'add-2d-carry',
-    name: 'Two-Digit Addition (carries)',
-    blurb: 'Two-digit sums that force big-friend carries.',
-    gen: genTwoDigitCarry,
+    id: 'carry-9',
+    element: 'earth',
+    name: 'Carries · +9',
+    blurb: 'Big friend: +9 = −1 +10.',
+    gen: (o) => genCarryStage(9, o),
+  },
+  {
+    id: 'carry-8',
+    element: 'earth',
+    name: 'Carries · +8',
+    blurb: 'Big friend: +8 = −2 +10.',
+    gen: (o) => genCarryStage(8, o),
+  },
+  {
+    id: 'carry-7',
+    element: 'earth',
+    name: 'Carries · +7',
+    blurb: 'Big friend: +7 = −3 +10, plain or combined.',
+    gen: (o) => genCarryStage(7, o),
+  },
+  {
+    id: 'carry-6',
+    element: 'earth',
+    name: 'Carries · +6',
+    blurb: 'Big friend: +6 = −4 +10, plain or combined.',
+    gen: (o) => genCarryStage(6, o),
+  },
+  {
+    id: 'carry-easy',
+    element: 'earth',
+    name: 'Carries · +5…+1',
+    blurb: 'Pure big-friend carries, all five easy digits.',
+    gen: (o) => genCarryStage([5, 4, 3, 2, 1], o),
   },
   {
     id: 'long-add',
+    element: 'earth',
     name: 'Long Addition',
-    blurb: 'Three to five numbers chained together.',
+    blurb: 'Three-plus numbers chained together.',
     gen: genLongAddition,
   },
   {
     id: 'sub-plain',
-    name: 'Subtraction (no borrowing)',
-    blurb: 'Take beads straight back down, no borrowing.',
+    element: 'earth',
+    name: 'Subtraction, No Borrowing',
+    blurb: 'Take beads straight back down.',
     gen: genSubNoBorrow,
   },
+  // 🌬️ Air — book level 3
   {
-    id: 'sub-borrow',
-    name: 'Subtraction (borrowing)',
-    blurb: 'Borrowing tens via the big friend.',
-    gen: genSubBorrow,
+    id: 'borrow-9',
+    element: 'air',
+    name: 'Borrows · −9',
+    blurb: 'Borrow a ten: −9 = −10 +1.',
+    gen: (o) => genBorrowStage(9, o),
   },
   {
+    id: 'borrow-8',
+    element: 'air',
+    name: 'Borrows · −8',
+    blurb: 'Borrow a ten: −8 = −10 +2.',
+    gen: (o) => genBorrowStage(8, o),
+  },
+  {
+    id: 'borrow-7',
+    element: 'air',
+    name: 'Borrows · −7',
+    blurb: '−7 = −10 +3, concept and small-friend forms.',
+    gen: (o) => genBorrowStage(7, o),
+  },
+  {
+    id: 'borrow-6',
+    element: 'air',
+    name: 'Borrows · −6',
+    blurb: '−6 = −10 +4, concept and small-friend forms.',
+    gen: (o) => genBorrowStage(6, o),
+  },
+  {
+    id: 'borrow-easy',
+    element: 'air',
+    name: 'Borrows · −5…−1',
+    blurb: 'Pure borrows across all five easy digits.',
+    gen: (o) => genBorrowStage([5, 4, 3, 2, 1], o),
+  },
+  {
+    id: 'borrow-multi',
+    element: 'air',
+    name: 'Multi-Place Borrowing',
+    blurb: 'Cascades that roll from ones toward hundreds.',
+    gen: genCascadeBorrow,
+  },
+  // 🔥 Fire — mastery tier
+  {
     id: 'mixed-chain',
+    element: 'fire',
     name: 'Mixed Chains',
-    blurb: 'Three to five numbers mixing + and −.',
+    blurb: 'Adds and takes-aways interleaved.',
     gen: genMixedChain,
+  },
+  {
+    id: 'multiply',
+    element: 'fire',
+    name: 'Multiplication',
+    blurb: 'Partial products, stacked on the rods.',
+    gen: genMultiply,
+  },
+  {
+    id: 'divide',
+    element: 'fire',
+    name: 'Division',
+    blurb: 'Chunked subtraction until nothing remains.',
+    gen: genDivide,
   },
 ];
 
@@ -219,7 +487,9 @@ export function levelIndex(levelId) {
   return LEVELS.findIndex((l) => l.id === levelId);
 }
 
-/** Renders a question as a compact string, e.g. "34 + 27 − 8". */
+export const OP_SIGNS = { '+': '+', '-': '−', '*': '×', '/': '÷' };
+
+/** Renders a question as a compact string, e.g. "34 + 27 − 8" or "6 × 7". */
 export function formatQuestion(q) {
   return q.operands
     .map(String)
@@ -227,7 +497,7 @@ export function formatQuestion(q) {
       (str, operand, i) =>
         i === 0
           ? operand
-          : `${str} ${q.operators[i - 1] === '-' ? '−' : '+'} ${operand}`,
+          : `${str} ${OP_SIGNS[q.operators[i - 1]] ?? q.operators[i - 1]} ${operand}`,
       '',
     );
 }

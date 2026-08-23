@@ -7,6 +7,7 @@ import { eq, gt } from 'ember-truth-helpers';
 import { service } from '@ember/service';
 import { LinkTo } from '@ember/routing';
 import { formatMs } from '../utils/format';
+import { formatQuestion, OP_SIGNS } from '../utils/questions';
 
 const COUNT_OPTIONS = [10, 20, 30];
 
@@ -20,6 +21,7 @@ const autofocus = modifier((el) => el.focus());
  */
 export default class PracticeSession extends Component {
   @service progress;
+  @service mindMode;
 
   @tracked phase = 'setup'; // setup | running | done
   @tracked count = 10;
@@ -36,6 +38,7 @@ export default class PracticeSession extends Component {
   @tracked elapsed = 0;
   timerId = null;
   startedAt = 0;
+  #mind = false;
 
   countOptions = COUNT_OPTIONS;
 
@@ -65,7 +68,7 @@ export default class PracticeSession extends Component {
     if (!this.question) return [];
     return this.question.operands.map((value, i) => ({
       value,
-      sign: i === 0 ? '' : this.question.operators[i - 1] === '-' ? '−' : '+',
+      sign: i === 0 ? '' : (OP_SIGNS[this.question.operators[i - 1]] ?? '+'),
     }));
   }
 
@@ -91,6 +94,11 @@ export default class PracticeSession extends Component {
   }
 
   @action
+  setMind(event) {
+    this.mindMode.setEnabled(event.target.checked);
+  }
+
+  @action
   start() {
     this.index = 0;
     this.correctCount = 0;
@@ -99,7 +107,8 @@ export default class PracticeSession extends Component {
     this.review = [];
     this.elapsed = 0;
     this.answer = '';
-    this.question = this.level.gen();
+    this.#mind = this.mindMode.enabled;
+    this.question = this.level.gen({ mind: this.#mind });
     this.phase = 'running';
     this.#startTimer();
   }
@@ -117,10 +126,7 @@ export default class PracticeSession extends Component {
     this.review = [
       ...this.review,
       {
-        prompt: `${q.operands[0]}${q.operands
-          .slice(1)
-          .map((n, i) => ` ${q.operators[i] === '-' ? '−' : '+'} ${n}`)
-          .join('')}`,
+        prompt: formatQuestion(q),
         given,
         rightAnswer: q.answer,
         correct,
@@ -134,7 +140,7 @@ export default class PracticeSession extends Component {
       return;
     }
     this.index = next;
-    this.question = this.level.gen();
+    this.question = this.level.gen({ mind: this.#mind });
   }
 
   @action
@@ -186,6 +192,21 @@ export default class PracticeSession extends Component {
               </label>
             {{/each}}
           </fieldset>
+          <label class="mind-toggle">
+            <input
+              type="checkbox"
+              checked={{this.mindMode.enabled}}
+              {{on "change" this.setMind}}
+            />
+            🧠 Mind Mode — no abacus, mental only
+          </label>
+          <p class="mind-hint">
+            {{#if this.mindMode.enabled}}
+              Abacus hidden · smaller numbers
+            {{else}}
+              Use the on-screen soroban to work the answers out
+            {{/if}}
+          </p>
           <button type="button" class="big-start" {{on "click" this.start}}>▶
             Start!</button>
         </div>

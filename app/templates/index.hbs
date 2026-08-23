@@ -38,29 +38,44 @@
     </div>
   {{/if}}
 
-  <h2>Levels</h2>
-  <div class="level-grid">
-    {{#each this.levelCards as |card|}}
-      <div
-        class="card level-card {{if card.locked 'locked'}}"
-        data-test-level-card
-      >
-        <span class="level-index">{{add card.index 1}}</span>
-        <h3>{{if card.locked "🔒 " ""}}{{card.name}}</h3>
-        <p>{{card.blurb}}</p>
-        {{#if card.bestTime}}
-          <p class="best-time">Best 100% time: {{format-ms card.bestTime}}</p>
+  <h2>Stages</h2>
+  {{#each this.elementSections as |element|}}
+    <section class="element-block {{element.id}}">
+      <header class="element-head">
+        <span class="element-emoji">{{element.emoji}}</span>
+        <div>
+          <h3 class="element-name">{{element.name}}</h3>
+          <p class="element-tagline">{{element.tagline}}</p>
+        </div>
+        {{#if element.graduated}}
+          <span class="element-badge">graduated ✓</span>
         {{/if}}
-        {{#unless card.locked}}
-          <LinkTo
-            @route="practice"
-            @model={{card.id}}
-            class="ghost-btn"
-          >Practice</LinkTo>
-        {{/unless}}
+      </header>
+      <div class="level-grid">
+        {{#each element.stages as |card|}}
+          <div
+            class="card level-card {{if card.locked 'locked'}}"
+            data-test-level-card
+          >
+            <span class="level-index">{{add card.index 1}}</span>
+            <h3>{{if card.locked "🔒 " ""}}{{card.name}}</h3>
+            <p>{{card.blurb}}</p>
+            {{#if card.bestTime}}
+              <p class="best-time">Best 100% time:
+                {{format-ms card.bestTime}}</p>
+            {{/if}}
+            {{#unless card.locked}}
+              <LinkTo
+                @route="practice"
+                @model={{card.id}}
+                class="ghost-btn"
+              >Practice</LinkTo>
+            {{/unless}}
+          </div>
+        {{/each}}
       </div>
-    {{/each}}
-  </div>
+    </section>
+  {{/each}}
 
   {{#if this.progress.sessions.length}}
     <h2>Recent sessions</h2>
