@@ -9,8 +9,9 @@ export default class PracticeRoute extends Route {
   model({ level_id }) {
     const level = levelById(level_id) ?? LEVELS[0];
     const index = levelIndex(level.id);
-    // unplaced students must take the assessment first; locked levels bounce home
-    if (!this.progress.placed || index > this.progress.unlockedLevel) {
+    // locked stages bounce home; unlocked ones (always including stage 1)
+    // are practiceable even before the placement quiz
+    if (index > this.progress.unlockedLevel) {
       this.router.transitionTo('index');
       return null;
     }

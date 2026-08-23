@@ -811,3 +811,46 @@ h2 {
     transform: rotate(360deg);
   }
 }
+
+/* ---------- small screens ---------- */
+
+@media (width <= 520px) {
+  .stat-strip {
+    gap: 1.2rem;
+  }
+
+  .stat-num {
+    font-size: 1.4rem;
+  }
+
+  .stat-label {
+    font-size: 0.65rem;
+  }
+
+  .level-card h3 {
+    font-size: 0.95rem;
+  }
+
+  .level-card p {
+    font-size: 0.8rem;
+  }
+
+  .element-name {
+    font-size: 1.05rem;
+  }
+
+  .element-tagline {
+    font-size: 0.72rem;
+  }
+
+  .element-badge {
+    font-size: 0.62rem;
+    padding: 0.2rem 0.5rem;
+  }
+
+  .sessions-table th,
+  .sessions-table td {
+    font-size: 0.72rem;
+    padding: 0.4rem 0.45rem;
+  }
+}
