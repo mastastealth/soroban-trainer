@@ -9,7 +9,8 @@ import { LinkTo } from '@ember/routing';
 import { formatMs } from '../utils/format';
 import { formatQuestion, OP_SIGNS } from '../utils/questions';
 import {
-  prepareVoice,
+  prepareVoiceFirstHalf,
+  prepareVoiceRest,
   playVoiceAt,
   preloadDictationVoice,
 } from '../utils/speech';
@@ -152,11 +153,18 @@ export default class PracticeSession extends Component {
     if (this.dictation && !this.kittenVoiceFailed) {
       // the clock starts only once the voice is ready to go
       this.voiceReady = false;
-      prepareVoice(this.questionsList).then((ok) => {
-        this.kittenVoiceFailed = !ok;
-        this.voiceReady = true;
-        this.#startTimer();
-      });
+      prepareVoiceFirstHalf(this.questionsList)
+        .then((ok) => {
+          this.kittenVoiceFailed = !ok;
+          this.voiceReady = true;
+          this.#startTimer();
+          if (ok) prepareVoiceRest(this.questionsList);
+        })
+        .catch(() => {
+          this.kittenVoiceFailed = true;
+          this.voiceReady = true;
+          this.#startTimer();
+        });
     } else {
       this.voiceReady = true;
       this.#startTimer();

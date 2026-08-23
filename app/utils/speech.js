@@ -103,6 +103,17 @@ function speakWithBrowser(q) {
 
 let ttsPromise = null;
 let kittenFailed = false;
+
+function markKittenFailed(e) {
+  kittenFailed = true;
+  try {
+    localStorage.setItem('kitten-error', String(e));
+  } catch {
+    // ignore
+  }
+}
+
+const firstHalfCount = (len) => Math.ceil(len / 2);
 /** key (question index) -> RawAudio from kitten-tts-js */
 const preparedCache = new Map();
 
@@ -124,24 +135,50 @@ export function preloadDictationVoice() {
 }
 
 /**
- * Synthesizes every question's audio ahead of play. Resolves with true when
- * the Kitten voice is ready, false when it failed (fallback will be used).
+ * Synthesizes the first half of the questions ahead of play — enough for the
+ * loader to clear quickly. Returns true when the Kitten voice is usable.
  */
-export async function prepareVoice(questions) {
+export async function prepareVoiceFirstHalf(questions) {
   preparedCache.clear();
   let tts;
   try {
     tts = await getTTS();
   } catch (e) {
-    kittenFailed = true;
-    try {
-      localStorage.setItem('kitten-error', String(e));
-    } catch {
-      // ignore
+    markKittenFailed(e);
+    return false;
+  }
+  const count = firstHalfCount(questions.length);
+  try {
+    for (let i = 0; i < count; i++) {
+      preparedCache.set(
+        i,
+        await tts.generate(questionToSpeech(questions[i]), { voice: VOICE }),
+      );
     }
+    return true;
+  } catch (e) {
+    markKittenFailed(e);
+    return false;
+  }
+}
+
+/** Lets the browser paint between background synthesis steps. */
+const breathe = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+/**
+ * Synthesizes the remaining questions in the background, yielding to the UI
+ * thread between items. Resolves true when everything is cached.
+ */
+export async function prepareVoiceRest(questions) {
+  if (kittenFailed) return false;
+  let tts;
+  try {
+    tts = await getTTS();
+  } catch {
     return false;
   }
   for (let i = 0; i < questions.length; i++) {
+    await breathe();
     if (preparedCache.has(i)) continue;
     try {
       preparedCache.set(
@@ -149,12 +186,7 @@ export async function prepareVoice(questions) {
         await tts.generate(questionToSpeech(questions[i]), { voice: VOICE }),
       );
     } catch (e) {
-      kittenFailed = true;
-      try {
-        localStorage.setItem('kitten-error', `${i}: ${String(e)}`);
-      } catch {
-        // ignore
-      }
+      markKittenFailed(e);
       return false;
     }
   }
@@ -170,11 +202,23 @@ export function hasVoiceAt(index) {
  * it (or KittenTTS failed), falls back to browser Web Speech.
  */
 export async function playVoiceAt(index, question) {
-  if (kittenFailed || !hasVoiceAt(index)) {
+  if (kittenFailed) {
     await speakWithBrowser(question);
     return;
   }
-  const audio = preparedCache.get(index);
+  let audio = preparedCache.get(index);
+  if (!audio) {
+    // raced ahead of the background pass — synthesize just this one now
+    try {
+      const tts = await getTTS();
+      audio = await tts.generate(questionToSpeech(question), { voice: VOICE });
+      preparedCache.set(index, audio);
+    } catch (e) {
+      markKittenFailed(e);
+      await speakWithBrowser(question);
+      return;
+    }
+  }
   const ctx = getAudioContext();
   const buffer = audio.toAudioBuffer(ctx);
   await new Promise((resolve) => {
