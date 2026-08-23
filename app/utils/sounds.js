@@ -1,25 +1,27 @@
-// CC0 sounds from OpenGameArt (qubodup, "Button Click Sound Effect").
-let beadSound;
-let resetSound;
+/**
+ * Abacus sound effects via howler.js — sounds are preloaded once at module
+ * init, pooled by Howler (rapid bead taps overlap cleanly), and unlocked
+ * automatically on the first user gesture. MP3 fallbacks ship alongside the
+ * OGG sources for Safari.
+ */
+import { Howl } from 'howler';
 
-function clone(sound) {
-  const instance = sound.cloneNode();
-  instance.volume = 0.5;
-  instance.play().catch(() => {
-    // autoplay restrictions — ignore silently
-  });
-}
+const beadClick = new Howl({
+  src: ['/sounds/bead-click.ogg', '/sounds/bead-click.mp3'],
+  volume: 0.5,
+});
+
+const resetSweep = new Howl({
+  src: ['/sounds/reset.ogg', '/sounds/reset.mp3'],
+  volume: 0.5,
+});
 
 /** Short wooden clack for bead movement. */
 export function playBeadClick() {
-  if (typeof Audio === 'undefined') return;
-  if (!beadSound) beadSound = new Audio('/sounds/bead-click.ogg');
-  clone(beadSound);
+  beadClick.play();
 }
 
 /** Rising-then-falling triple clack for the reset button. */
 export function playReset() {
-  if (typeof Audio === 'undefined') return;
-  if (!resetSound) resetSound = new Audio('/sounds/reset.ogg');
-  clone(resetSound);
+  resetSweep.play();
 }

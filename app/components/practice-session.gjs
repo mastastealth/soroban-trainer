@@ -149,16 +149,18 @@ export default class PracticeSession extends Component {
     );
     this.question = this.questionsList[0];
     this.phase = 'running';
-    if (this.dictation) {
+    if (this.dictation && !this.kittenVoiceFailed) {
+      // the clock starts only once the voice is ready to go
       this.voiceReady = false;
       prepareVoice(this.questionsList).then((ok) => {
         this.kittenVoiceFailed = !ok;
         this.voiceReady = true;
+        this.#startTimer();
       });
     } else {
       this.voiceReady = true;
+      this.#startTimer();
     }
-    this.#startTimer();
   }
 
   @action

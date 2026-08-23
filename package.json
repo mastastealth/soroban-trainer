@@ -92,6 +92,7 @@
     "edition": "octane"
   },
   "dependencies": {
+    "howler": "^2.2.4",
     "kitten-tts-js": "^0.1.2",
     "onnxruntime-web": "^1.27.0"
   },

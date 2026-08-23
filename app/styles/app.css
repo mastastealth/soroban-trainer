@@ -22,7 +22,7 @@
 
 body {
   margin: 0;
-  font-family: "Baloo 2", "Comic Sans MS", ui-rounded, system-ui, sans-serif;
+  font-family: "Baloo 2", Roboto, Tahoma, Arial, sans-serif;
   background: var(--paper);
   color: var(--ink);
 }
