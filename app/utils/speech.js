@@ -10,9 +10,8 @@
  */
 
 import { KittenTTS } from 'kitten-tts-js';
-// Load ORT's WASM glue from the CDN — Vite's dev-server import analysis
-// mangles dynamic imports of local assets, while cross-origin URLs pass
-// through untouched. (First TTS use needs network anyway for the model.)
+// Pin ORT's WASM glue to the CDN — Vite's dev-server import analysis
+// mangles the library's own dynamic imports of these files otherwise.
 import * as ort from 'onnxruntime-web';
 
 ort.env.wasm.wasmPaths =
@@ -100,15 +99,19 @@ function speakWithBrowser(q) {
   });
 }
 
+// ─── KittenTTS session + per-session audio cache ────────────────────────────
+
 let ttsPromise = null;
 let kittenFailed = false;
+/** key (question index) -> RawAudio from kitten-tts-js */
+const preparedCache = new Map();
 
 function getTTS() {
   ttsPromise ??= KittenTTS.from_pretrained(MODEL, { voice: VOICE });
   return ttsPromise;
 }
 
-/** Pre-loads the KittenTTS model so the first Play click speaks quickly. */
+/** Pre-loads the KittenTTS model so synthesis starts instantly later. */
 export function preloadDictationVoice() {
   return getTTS().catch((e) => {
     kittenFailed = true;
@@ -120,10 +123,58 @@ export function preloadDictationVoice() {
   });
 }
 
-async function speakWithKitten(q) {
-  const tts = await getTTS();
-  const text = questionToSpeech(q);
-  const audio = await tts.generate(text, { voice: VOICE });
+/**
+ * Synthesizes every question's audio ahead of play. Resolves with true when
+ * the Kitten voice is ready, false when it failed (fallback will be used).
+ */
+export async function prepareVoice(questions) {
+  preparedCache.clear();
+  let tts;
+  try {
+    tts = await getTTS();
+  } catch (e) {
+    kittenFailed = true;
+    try {
+      localStorage.setItem('kitten-error', String(e));
+    } catch {
+      // ignore
+    }
+    return false;
+  }
+  for (let i = 0; i < questions.length; i++) {
+    if (preparedCache.has(i)) continue;
+    try {
+      preparedCache.set(
+        i,
+        await tts.generate(questionToSpeech(questions[i]), { voice: VOICE }),
+      );
+    } catch (e) {
+      kittenFailed = true;
+      try {
+        localStorage.setItem('kitten-error', `${i}: ${String(e)}`);
+      } catch {
+        // ignore
+      }
+      return false;
+    }
+  }
+  return true;
+}
+
+export function hasVoiceAt(index) {
+  return preparedCache.has(index);
+}
+
+/**
+ * Plays the prepared audio for question `index`. When the Kitten cache lacks
+ * it (or KittenTTS failed), falls back to browser Web Speech.
+ */
+export async function playVoiceAt(index, question) {
+  if (kittenFailed || !hasVoiceAt(index)) {
+    await speakWithBrowser(question);
+    return;
+  }
+  const audio = preparedCache.get(index);
   const ctx = getAudioContext();
   const buffer = audio.toAudioBuffer(ctx);
   await new Promise((resolve) => {
@@ -133,22 +184,4 @@ async function speakWithKitten(q) {
     source.connect(ctx.destination);
     source.start();
   });
-}
-
-/** Speaks the question aloud; resolves when playback finishes. */
-export async function speakQuestion(q) {
-  if (!kittenFailed) {
-    try {
-      await speakWithKitten(q);
-      return;
-    } catch (e) {
-      kittenFailed = true;
-      try {
-        localStorage.setItem('kitten-error', String(e));
-      } catch {
-        // ignore
-      }
-    }
-  }
-  await speakWithBrowser(q);
 }

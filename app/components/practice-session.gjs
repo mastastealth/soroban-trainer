@@ -8,7 +8,11 @@ import { service } from '@ember/service';
 import { LinkTo } from '@ember/routing';
 import { formatMs } from '../utils/format';
 import { formatQuestion, OP_SIGNS } from '../utils/questions';
-import { speakQuestion, preloadDictationVoice } from '../utils/speech';
+import {
+  prepareVoice,
+  playVoiceAt,
+  preloadDictationVoice,
+} from '../utils/speech';
 
 const COUNT_OPTIONS = [10, 20, 30];
 
@@ -40,10 +44,14 @@ export default class PracticeSession extends Component {
   timerId = null;
   startedAt = 0;
   #mind = false;
+  questionsList = [];
+  kittenVoiceFailed = false;
 
   @tracked dictation =
     typeof localStorage !== 'undefined' &&
     localStorage.getItem('soroban-dictation') === '1';
+  @tracked voiceReady = !this.dictation;
+  @tracked speaking = false;
 
   countOptions = COUNT_OPTIONS;
 
@@ -116,9 +124,14 @@ export default class PracticeSession extends Component {
     }
   }
 
-  playQuestion = () => {
-    localStorage.setItem('pq-arrow', String(Date.now()));
-    if (this.question) speakQuestion(this.question);
+  playQuestion = async () => {
+    if (this.speaking || !this.question) return;
+    this.speaking = true;
+    try {
+      await playVoiceAt(this.index, this.question);
+    } finally {
+      this.speaking = false;
+    }
   };
 
   @action
@@ -131,8 +144,20 @@ export default class PracticeSession extends Component {
     this.elapsed = 0;
     this.answer = '';
     this.#mind = this.mindMode.enabled;
-    this.question = this.level.gen({ mind: this.#mind });
+    this.questionsList = Array.from({ length: this.count }, () =>
+      this.level.gen({ mind: this.#mind }),
+    );
+    this.question = this.questionsList[0];
     this.phase = 'running';
+    if (this.dictation) {
+      this.voiceReady = false;
+      prepareVoice(this.questionsList).then((ok) => {
+        this.kittenVoiceFailed = !ok;
+        this.voiceReady = true;
+      });
+    } else {
+      this.voiceReady = true;
+    }
     this.#startTimer();
   }
 
@@ -163,7 +188,7 @@ export default class PracticeSession extends Component {
       return;
     }
     this.index = next;
-    this.question = this.level.gen({ mind: this.#mind });
+    this.question = this.questionsList[next];
   }
 
   @action
@@ -266,25 +291,42 @@ export default class PracticeSession extends Component {
           {{#if this.question}}
             <form class="answer-form" {{on "submit" this.submitAnswer}}>
               {{#if this.dictation}}
-                <div class="dictation-box">
-                  <button
-                    type="button"
-                    class="speak-btn"
-                    {{on "click" this.playQuestion}}
-                  >🔊 Play math question</button>
-                </div>
-                <input
-                  {{autofocus}}
-                  class="stack-input dictation-input"
-                  type="text"
-                  inputmode="numeric"
-                  pattern="[0-9]*"
-                  autocomplete="off"
-                  aria-label="Your answer"
-                  value={{this.answer}}
-                  {{on "input" this.updateAnswer}}
-                />
-                <button type="submit" class="check-btn">Check</button>
+                {{#if this.voiceReady}}
+                  <div class="dictation-box">
+                    <button
+                      type="button"
+                      class="speak-btn"
+                      {{on "click" this.playQuestion}}
+                      disabled={{this.speaking}}
+                    >
+                      {{#if this.speaking}}
+                        <span class="btn-spinner"></span>
+                        Speaking…
+                      {{else}}
+                        🔊 Play math question
+                      {{/if}}
+                    </button>
+                  </div>
+                {{else}}
+                  <div class="voice-loading">
+                    <span class="spinner"></span>
+                    🎙 Preparing voice…
+                  </div>
+                {{/if}}
+                {{#if this.voiceReady}}
+                  <input
+                    {{autofocus}}
+                    class="stack-input dictation-input"
+                    type="text"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                    autocomplete="off"
+                    aria-label="Your answer"
+                    value={{this.answer}}
+                    {{on "input" this.updateAnswer}}
+                  />
+                  <button type="submit" class="check-btn">Check</button>
+                {{/if}}
               {{else}}
                 <div class="question-stack" aria-label="Problem">
                   {{#each this.stackRows as |row|}}
