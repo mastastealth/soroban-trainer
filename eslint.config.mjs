@@ -103,4 +103,5 @@ export default defineConfig([
       },
     },
   },
+  globalIgnores(['vendor/**', 'public/**']),
 ]);

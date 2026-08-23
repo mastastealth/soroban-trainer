@@ -8,8 +8,7 @@ import { service } from '@ember/service';
 import { LinkTo } from '@ember/routing';
 import { formatMs } from '../utils/format';
 import { formatQuestion, OP_SIGNS } from '../utils/questions';
-import { speakQuestion } from '../utils/speech';
-import onClick from '../modifiers/on-click';
+import { speakQuestion, preloadDictationVoice } from '../utils/speech';
 
 const COUNT_OPTIONS = [10, 20, 30];
 
@@ -107,6 +106,9 @@ export default class PracticeSession extends Component {
   @action
   setDictation(event) {
     this.dictation = event.target.checked;
+    if (this.dictation) {
+      preloadDictationVoice();
+    }
     try {
       localStorage.setItem('soroban-dictation', this.dictation ? '1' : '0');
     } catch {
@@ -114,10 +116,10 @@ export default class PracticeSession extends Component {
     }
   }
 
-  @action
-  playQuestion() {
+  playQuestion = () => {
+    localStorage.setItem('pq-arrow', String(Date.now()));
     if (this.question) speakQuestion(this.question);
-  }
+  };
 
   @action
   start() {
@@ -268,7 +270,7 @@ export default class PracticeSession extends Component {
                   <button
                     type="button"
                     class="speak-btn"
-                    {{onClick this.playQuestion}}
+                    {{on "click" this.playQuestion}}
                   >🔊 Play math question</button>
                 </div>
                 <input

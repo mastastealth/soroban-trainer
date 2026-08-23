@@ -90,5 +90,14 @@
   },
   "ember": {
     "edition": "octane"
+  },
+  "dependencies": {
+    "kitten-tts-js": "^0.1.2",
+    "onnxruntime-web": "^1.27.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "protobufjs"
+    ]
   }
 }

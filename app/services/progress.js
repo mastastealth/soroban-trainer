@@ -60,7 +60,7 @@ export default class ProgressService extends Service {
   }
 
   bestTime(levelId) {
-    return this.data.bestTimes[levelId];
+    return this.data.bestTimes?.[levelId];
   }
 
   completeAssessment(unlockedLevel) {
