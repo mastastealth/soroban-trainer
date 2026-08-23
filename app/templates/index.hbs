@@ -1,0 +1,90 @@
+<div class="dashboard">
+  {{#if this.progress.placed}}
+    <div class="hero card">
+      <div>
+        <p class="level-kicker">Current level</p>
+        <h1>{{this.currentLevel.name}}</h1>
+        <p class="blurb">{{this.currentLevel.blurb}}</p>
+      </div>
+      <LinkTo
+        @route="practice"
+        @model={{this.currentLevel.id}}
+        class="big-start"
+      >Practice ▶</LinkTo>
+    </div>
+
+    <div class="stat-strip">
+      <div class="stat card"><span class="stat-num">🌟
+          {{this.progress.perfectSessions}}</span><span
+          class="stat-label"
+        >perfect sessions</span></div>
+      <div class="stat card"><span class="stat-num">📚
+          {{this.progress.sessions.length}}</span><span
+          class="stat-label"
+        >sessions done</span></div>
+      <div class="stat card"><span class="stat-num">🎯 L{{this.progress.unlockedLevel}}</span><span
+          class="stat-label"
+        >unlocked level</span></div>
+    </div>
+  {{else}}
+    <div class="card center">
+      <h1>Welcome! 👋</h1>
+      <p class="blurb">
+        Let's find your abacus level first. The placement quiz is short and fun
+        — then you can practice everything from single-digit addition all the
+        way to big-friend borrowing.
+      </p>
+      <LinkTo @route="assessment" class="big-start">Take the placement quiz 🚀</LinkTo>
+    </div>
+  {{/if}}
+
+  <h2>Levels</h2>
+  <div class="level-grid">
+    {{#each this.levelCards as |card|}}
+      <div
+        class="card level-card {{if card.locked 'locked'}}"
+        data-test-level-card
+      >
+        <span class="level-index">{{add card.index 1}}</span>
+        <h3>{{if card.locked "🔒 " ""}}{{card.name}}</h3>
+        <p>{{card.blurb}}</p>
+        {{#if card.bestTime}}
+          <p class="best-time">Best 100% time: {{format-ms card.bestTime}}</p>
+        {{/if}}
+        {{#unless card.locked}}
+          <LinkTo
+            @route="practice"
+            @model={{card.id}}
+            class="ghost-btn"
+          >Practice</LinkTo>
+        {{/unless}}
+      </div>
+    {{/each}}
+  </div>
+
+  {{#if this.progress.sessions.length}}
+    <h2>Recent sessions</h2>
+    <table class="sessions-table">
+      <thead>
+        <tr><th>Level</th><th>Score</th><th>Best streak</th><th>Time</th><th
+          ></th></tr>
+      </thead>
+      <tbody>
+        {{#each this.recentSessions as |session|}}
+          <tr>
+            <td>{{session.levelName}}</td>
+            <td>{{session.correct}}/{{session.total}}{{#if session.perfect}}
+                🌟{{/if}}</td>
+            <td>{{session.bestStreak}}</td>
+            <td>{{format-ms session.ms}}</td>
+            <td>{{format-date session.at}}</td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  {{/if}}
+
+  <p class="retake">
+    <LinkTo @route="assessment" class="ghost-btn">↻ Retake placement quiz</LinkTo>
+  </p>
+</div>

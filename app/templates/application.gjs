@@ -1,12 +1,22 @@
 import { pageTitle } from 'ember-page-title';
-import { WelcomePage } from 'ember-welcome-page';
+import { LinkTo } from '@ember/routing';
+import Soroban from 'soroban-trainer/components/soroban';
 
 <template>
-  {{pageTitle "SorobanTrainer"}}
+  {{pageTitle "Soroban Trainer"}}
 
-  {{outlet}}
+  <div class="app-shell">
+    <header class="app-header">
+      <LinkTo @route="index" class="brand">🧮 Soroban Trainer</LinkTo>
+      <nav>
+        <LinkTo @route="index">Home</LinkTo>
+        <LinkTo @route="assessment">Placement</LinkTo>
+      </nav>
+    </header>
+    <main class="app-main">
+      {{outlet}}
+    </main>
+  </div>
 
-  {{! The following component displays Ember's default welcome message. }}
-  <WelcomePage @extension="gjs" />
-  {{! Feel free to remove this! }}
+  <Soroban />
 </template>
