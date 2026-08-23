@@ -10,11 +10,13 @@
  */
 
 import { KittenTTS } from 'kitten-tts-js';
-// Serve ORT's WASM glue from vendored files inside the module graph — the
-// dev server's import-analysis breaks dynamic imports of public-dir assets.
+// Load ORT's WASM glue from the CDN — Vite's dev-server import analysis
+// mangles dynamic imports of local assets, while cross-origin URLs pass
+// through untouched. (First TTS use needs network anyway for the model.)
 import * as ort from 'onnxruntime-web';
 
-ort.env.wasm.wasmPaths = '/vendor/ort/';
+ort.env.wasm.wasmPaths =
+  'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27.0/dist/';
 
 const MODEL = 'KittenML/kitten-tts-nano-0.8';
 const VOICE = 'Luna';
