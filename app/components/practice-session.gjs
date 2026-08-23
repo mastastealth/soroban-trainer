@@ -8,6 +8,8 @@ import { service } from '@ember/service';
 import { LinkTo } from '@ember/routing';
 import { formatMs } from '../utils/format';
 import { formatQuestion, OP_SIGNS } from '../utils/questions';
+import { speakQuestion } from '../utils/speech';
+import onClick from '../modifiers/on-click';
 
 const COUNT_OPTIONS = [10, 20, 30];
 
@@ -39,6 +41,10 @@ export default class PracticeSession extends Component {
   timerId = null;
   startedAt = 0;
   #mind = false;
+
+  @tracked dictation =
+    typeof localStorage !== 'undefined' &&
+    localStorage.getItem('soroban-dictation') === '1';
 
   countOptions = COUNT_OPTIONS;
 
@@ -96,6 +102,21 @@ export default class PracticeSession extends Component {
   @action
   setMind(event) {
     this.mindMode.setEnabled(event.target.checked);
+  }
+
+  @action
+  setDictation(event) {
+    this.dictation = event.target.checked;
+    try {
+      localStorage.setItem('soroban-dictation', this.dictation ? '1' : '0');
+    } catch {
+      // private mode — preference stays in-memory
+    }
+  }
+
+  @action
+  playQuestion() {
+    if (this.question) speakQuestion(this.question);
   }
 
   @action
@@ -207,6 +228,21 @@ export default class PracticeSession extends Component {
               Use the on-screen soroban to work the answers out
             {{/if}}
           </p>
+          <label class="mind-toggle">
+            <input
+              type="checkbox"
+              checked={{this.dictation}}
+              {{on "change" this.setDictation}}
+            />
+            🔊 Dictation — listen, don't look
+          </label>
+          <p class="mind-hint">
+            {{#if this.dictation}}
+              Questions are spoken aloud · press the button to hear them again
+            {{else}}
+              Problems are shown on screen
+            {{/if}}
+          </p>
           <button type="button" class="big-start" {{on "click" this.start}}>▶
             Start!</button>
         </div>
@@ -227,17 +263,17 @@ export default class PracticeSession extends Component {
         <div class="card question-card">
           {{#if this.question}}
             <form class="answer-form" {{on "submit" this.submitAnswer}}>
-              <div class="question-stack" aria-label="Problem">
-                {{#each this.stackRows as |row|}}
-                  <div class="stack-row">
-                    <span class="stack-op">{{row.sign}}</span>
-                    <span class="stack-num">{{row.value}}</span>
-                  </div>
-                {{/each}}
-                <div class="stack-rule"></div>
+              {{#if this.dictation}}
+                <div class="dictation-box">
+                  <button
+                    type="button"
+                    class="speak-btn"
+                    {{onClick this.playQuestion}}
+                  >🔊 Play math question</button>
+                </div>
                 <input
                   {{autofocus}}
-                  class="stack-input"
+                  class="stack-input dictation-input"
                   type="text"
                   inputmode="numeric"
                   pattern="[0-9]*"
@@ -247,7 +283,29 @@ export default class PracticeSession extends Component {
                   {{on "input" this.updateAnswer}}
                 />
                 <button type="submit" class="check-btn">Check</button>
-              </div>
+              {{else}}
+                <div class="question-stack" aria-label="Problem">
+                  {{#each this.stackRows as |row|}}
+                    <div class="stack-row">
+                      <span class="stack-op">{{row.sign}}</span>
+                      <span class="stack-num">{{row.value}}</span>
+                    </div>
+                  {{/each}}
+                  <div class="stack-rule"></div>
+                  <input
+                    {{autofocus}}
+                    class="stack-input"
+                    type="text"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                    autocomplete="off"
+                    aria-label="Your answer"
+                    value={{this.answer}}
+                    {{on "input" this.updateAnswer}}
+                  />
+                  <button type="submit" class="check-btn">Check</button>
+                </div>
+              {{/if}}
             </form>
             {{#if this.question.note}}
               <p class="technique-hint">💡 {{this.question.note}}</p>

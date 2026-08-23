@@ -744,3 +744,35 @@ h2 {
   font-size: 0.82rem;
   color: #8a7f6d;
 }
+
+/* ---------- dictation mode ---------- */
+
+.dictation-box {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin: 1.2rem 0;
+}
+
+.speak-btn {
+  font-family: inherit;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: white;
+  background: var(--accent);
+  border: none;
+  border-radius: 999px;
+  padding: 0.9rem 1.6rem;
+  cursor: pointer;
+  box-shadow: 0 4px 0 var(--accent-dark);
+}
+
+.speak-btn:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 var(--accent-dark);
+}
+
+.dictation-input {
+  width: 60% !important;
+  text-align: center;
+}
