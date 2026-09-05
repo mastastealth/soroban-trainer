@@ -41,7 +41,8 @@ module.exports = function (environment) {
   }
 
   if (environment === 'production') {
-    // here you can enable a production-specific feature
+    // served from the /soroban-trainer/ subpath on GitHub Pages
+    ENV.rootURL = '/soroban-trainer/';
   }
 
   return ENV;
